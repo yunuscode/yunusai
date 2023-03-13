@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Document</title>
+		<style>
+			body {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				height: 100vh;
+			}
+			.box {
+				width: 300px;
+				height: 500px;
+				display: flex;
+				border: 1px solid black;
+				flex-direction: column;
+			}
+
+			.title {
+				text-align: center;
+			}
+
+			.speakButton {
+				margin-top: auto;
+				padding: 20px;
+			}
+
+			.messages-list {
+				list-style-type: none;
+				padding: 0;
+				margin: 0;
+			}
+
+			.message-item {
+				padding: 10px;
+				font-weight: 700;
+			}
+
+			.right {
+				text-align: right;
+				background-color: darkcyan;
+			}
+
+			.left {
+				background-color: antiquewhite;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="box">
+			<h2 class="title">Yunus Ai</h2>
+
+			<ul class="messages-list"></ul>
+
+			<button class="speakButton">Gapirishni boshlash</button>
+		</div>
+
+		<script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle.js"></script>
+
+		<script>
+			const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
+				"7d235c3db99544cf905b806077711062",
+				"eastus"
+			);
+
+			speechConfig.speechRecognitionLanguage = "uz-UZ";
+			speechConfig.speechSynthesisVoiceName = "uz-UZ-MadinaNeural";
+
+			const messages = [];
+
+			const ulElement = document.querySelector(".messages-list");
+			const speakButton = document.querySelector(".speakButton");
+			let currentMessageElement;
+			let isMicrophoneEnabled = false;
+
+			// {
+			//     text: String;
+			//     url: String;
+			//     is: User/Bot;
+			// }
+
+			const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig);
+			const speaker = new SpeechSDK.SpeechSynthesizer(speechConfig);
+
+			recognizer.recognizing = (s, e) => {
+				speakButton.textContent = e.result.text;
+				console.log(`RECOGNIZING: Text=${e.result.text}`);
+			};
+
+			recognizer.recognized = (s, e) => {
+				if (e.result.reason !== SpeechSDK.ResultReason.RecognizedSpeech)
+					return;
+				speakButton.textContent = "Gapirishni boshlash";
+				if (
+					messages.filter((i) => i.text === e.result.text).length == 0
+				)
+					addNewMessage(e.result.text);
+				recognizer.stopContinuousRecognitionAsync();
+				getResponse(e.result.text);
+			};
+
+			recognizer.canceled = (s, e) => {
+				console.log(`CANCELED: Reason=${e.reason}`);
+			};
+
+			function addNewMessage(text) {
+				messages.push({
+					text,
+					url: null,
+					is: "user",
+				});
+				renderMessages();
+			}
+
+			function renderMessages() {
+				ulElement.textContent = "";
+				messages.forEach((item, index) => {
+					const liElement = document.createElement("li");
+					liElement.classList.add(
+						item.is == "user" ? "right" : "left",
+						"message-list"
+					);
+					liElement.textContent = item.text;
+					ulElement.appendChild(liElement);
+				});
+			}
+
+			speakButton.addEventListener("click", (event) => {
+				if (isMicrophoneEnabled) {
+					recognizer.stopContinuousRecognitionAsync();
+				} else {
+					recognizer.startContinuousRecognitionAsync();
+				}
+				isMicrophoneEnabled = !isMicrophoneEnabled;
+			});
+
+			async function getResponse(text) {
+				fetch("http://localhost:3000/getResponse", {
+					method: "POST",
+					body: JSON.stringify({
+						question: text,
+					}),
+					headers: {
+						"Content-Type": "application/json",
+					},
+				})
+					.then((data) => data.json())
+					.then((data) => {
+						messages.push({
+							text: data.response,
+							url: null,
+							is: "bot",
+						});
+						speaker.speakTextAsync(data.response);
+						renderMessages();
+					});
+			}
+		</script>
+	</body>
+</html>
